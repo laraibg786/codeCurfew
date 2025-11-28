@@ -9,48 +9,142 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type jwtManager struct {
-	token  string
-	expiry time.Time
-	mu     sync.Mutex
+type Token interface {
+	currentToken() (string, error)
+	isExpired(time.Time) bool
+	refreshToken() error
+	resetToken()
 }
 
-func (t *jwtManager) getToken(appId string, key *rsa.PrivateKey) (string, error) {
+type appToken struct {
+	appID  string
+	key    *rsa.PrivateKey
+	value  string
+	expiry time.Time
+}
 
-	// If token is valid, return cached token
-	if !time.Now().Before(t.expiry) {
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		if err := t.refreshToken(appId, key); err != nil {
+type installationToken struct {
+	installationID int
+	jwt            Token
+	value          string
+	expiry         time.Time
+}
+
+func GetTokenValue(t Token) (string, error) {
+	if t.isExpired(time.Now().Add(time.Minute * -2)) {
+		if err := t.refreshToken(); err != nil {
 			return "", err
 		}
 	}
-	return t.token, nil
+	return t.currentToken()
 }
 
-func (t *jwtManager) refreshToken(appId string, key *rsa.PrivateKey) error {
+func newJWTToken(appID string, key *rsa.PrivateKey) *appToken {
+	return &appToken{
+		appID: appID,
+		key:   key,
+	}
+}
+
+func (t *appToken) currentToken() (string, error) {
+	if t.value == "" {
+		return "", fmt.Errorf("no token found")
+	}
+	return t.value, nil
+}
+
+func (t *appToken) isExpired(ct time.Time) bool {
+	return ct.After(t.expiry)
+}
+
+func (t *appToken) refreshToken() error {
 	now := time.Now()
 	expiry := now.Add(time.Minute * 10)
 	claims := jwt.MapClaims{
 		"iat": now.Unix(),
 		"exp": expiry.Unix(),
-		"iss": appId,
+		"iss": t.appID,
 	}
-	token, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(key)
+	token, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(t.key)
 	if err != nil {
-		t = &jwtManager{}
+		t.resetToken()
 		return err
 	}
-	t.token = token
-	//keeping the conservative 2 minute window to token refresh
-	t.expiry = expiry.Add(time.Minute * -2)
+	t.value = token
+	t.expiry = expiry
 	return nil
+}
+
+func (t *appToken) resetToken() {
+	t.value = ""
+	t.expiry = time.Time{}
+}
+
+func newInstallationToken(installationID int, jwt Token) *installationToken {
+	return &installationToken{
+		installationID: installationID,
+		jwt:            jwt,
+	}
+}
+
+func (t *installationToken) currentToken() (string, error) {
+	if t.value == "" {
+		return "", fmt.Errorf("no token found")
+	}
+	return t.value, nil
+}
+
+func (t *installationToken) isExpired(ct time.Time) bool {
+	return ct.After(t.expiry)
+}
+
+func (t *installationToken) refreshToken() error {
+	expiry := time.Now().Add(time.Hour)
+	url := fmt.Sprintf("https://api.github.com/app/installations/%d/access_tokens", t.installationID)
+	r, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		t.resetToken()
+		return err
+	}
+	token, err := GetTokenValue(t.jwt)
+	if err != nil {
+		t.resetToken()
+		return ErrInvalidJWT
+	}
+	r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	r.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.resetToken()
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status: %s -  %s", resp.Status, string(body))
+	}
+
+	var result struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.resetToken()
+		return err
+	}
+	t.value = result.Token
+	t.expiry = expiry
+	return nil
+}
+func (t *installationToken) resetToken() {
+	t.value = ""
+	t.expiry = time.Time{}
 }
 
 func loadPrivateKey() (*rsa.PrivateKey, error) {

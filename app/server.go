@@ -7,25 +7,28 @@ import (
 
 type ApiFunc func(http.ResponseWriter, *http.Request) error
 
-type Server struct {
-	Port   string
+type CodeCurfew struct {
 	Secret string
 	AppId  string
 }
 
-func (s *Server) Start() {
+func (s CodeCurfew) Start(Addr string) {
 	mux := s.registerRoutes()
-	log.Printf("Running the server on port %s\n", s.Port)
-	if err := http.ListenAndServe(s.Port, mux); err != nil {
-		log.Println(err.Error())
+	log.Printf("Running the server on port %s\n", Addr)
+	server := http.Server{Addr: Addr, Handler: mux}
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalln(err)
 	}
 }
 
-func (s *Server) registerRoutes() *http.ServeMux {
+func (s CodeCurfew) registerRoutes() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("POST /webhook", LoggingMiddleware(SecretValidator(GithubTokenMiddleWare(NewApiHandlerFunc(HandleWebhook), s.AppId), []byte("secret"))))
+	mux.Handle("POST /webhook",
+		GithubTokenMiddleWare(NewApiHandlerFunc(HandleWebhook), s.AppId),
+	)
 
-	return mux
+	// return LoggingMiddleware(SecretValidator(mux, []byte("secret")))
+	return LoggingMiddleware(mux)
 }
 
 func NewApiHandlerFunc(f ApiFunc) http.HandlerFunc {

@@ -23,7 +23,7 @@ func SecretValidator(next http.Handler, secret []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := github.ValidatePayload(r, secret)
 		if err != nil {
-			http.Error(w, "", http.StatusForbidden)
+			w.WriteHeader(http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -35,16 +35,10 @@ func GithubTokenMiddleWare(next http.Handler, appID string) http.Handler {
 	if err != nil {
 		log.Println("Error in loading the private key file.", err.Error())
 	}
-	tokenManager := jwtManager{}
+	jwtToken := newJWTToken(appID, key)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jwt, err := tokenManager.getToken(appID, key)
-		if err != nil {
-			log.Println("Error in creating the jwt token", err.Error())
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-		ctx := context.WithValue(r.Context(), jwtKey, jwt)
+		ctx := context.WithValue(r.Context(), jwtKey, jwtToken)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

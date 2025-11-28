@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -8,11 +9,14 @@ import (
 )
 
 func main() {
+	addr := flag.String("addr", "0.0.0.0:8080", "The address to listen on")
+	flag.Parse()
+
 	server := ensureChecks()
-	server.Start()
+	server.Start(*addr)
 }
 
-func ensureChecks() app.Server {
+func ensureChecks() app.CodeCurfew {
 	appID := os.Getenv("GITHUB_APP_ID")
 	if appID == "" {
 		panic("`GITHUB_APP_ID` is required.")
@@ -27,8 +31,7 @@ func ensureChecks() app.Server {
 	} else if len(content) == 0 {
 		panic(fmt.Sprintf("no content found in the file `%s`", ghPrivKey))
 	}
-	return app.Server{
-		Port:   ":8080",
+	return app.CodeCurfew{
 		Secret: string(content),
 		AppId:  appID,
 	}

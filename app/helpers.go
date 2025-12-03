@@ -3,63 +3,59 @@ package app
 import (
 	"context"
 	"log/slog"
-	"slices"
-	"time"
 
 	"github.com/google/go-github/v76/github"
 )
 
-func validateEvent(e string, validEvents ...string) bool {
-	return slices.Contains(validEvents, e)
-}
-
-func setStatus(ctx context.Context, owner string, repo string, ref string, status *github.RepoStatus, installationToken Token) error {
-	logger := ctx.Value(loggerKey).(*slog.Logger)
-	start := time.Now()
-	defer func() {
-		logger.Debug("completed setStatus", "duration", time.Since(start))
-	}()
-	logger.Debug("setting status", "owner", owner, "repo", repo, "ref", ref, "state", status.GetState(), "context", status.GetContext())
+func setStatus(ctx context.Context, owner string, repo string, ref string, status *github.RepoStatus, installationToken TokenHolder) error {
+	logger, ok := ctx.Value(loggerKey).(*slog.Logger)
+	if !ok {
+		logger = slog.Default()
+		logger.Warn("logger not found in context, using default logger")
+	}
 	token, err := GetTokenValue(installationToken)
 	if err != nil {
 		return ErrInvalidInstallationToken
 	}
-	_, _, err = github.NewClient(nil).WithAuthToken(token).Repositories.CreateStatus(ctx, owner, repo, ref, status)
+	logger.Debug("setting status for commit", "owner", owner, "repo", repo, "ref", ref, "state", status.GetState(), "context", status.GetContext())
+	s, _, err := github.NewClient(nil).WithAuthToken(token).Repositories.CreateStatus(ctx, owner, repo, ref, status)
 	if err != nil {
 		return err
 	}
-	logger.Debug("status set successfully")
+	logger.Debug("status set successfully", "status", s.GetState())
 	return nil
 }
 
-func getCurfewRules(ctx context.Context, owner string, repo string, branch string, token Token) (CurfewRules, error) {
-	logger := ctx.Value(loggerKey).(*slog.Logger)
-	start := time.Now()
-	defer func() {
-		logger.Debug("completed getCurfewRules", "duration", time.Since(start))
-	}()
-	logger.Debug("fetching curfew rules", "owner", owner, "repo", repo, "branch", branch)
+func getCurfewRules(ctx context.Context, owner string, repo string, branch string, token TokenHolder) (CurfewRules, error) {
+	l, ok := ctx.Value(loggerKey).(*slog.Logger)
+	if !ok {
+		l = slog.Default()
+		l.Warn("logger not found in context, using default logger")
+	}
+
+	l.Debug("fetching curfew rules", "owner", owner, "repo", repo, "branch", branch)
 	installationToken, err := GetTokenValue(token)
 	if err != nil {
-		logger.Debug("failed to get installation token, using default config", "error", err)
+		// FIXME: this should give error instead #1.
+		l.Warn("failed to get installation token, using default config", "error", err)
 		return parseConfig(defaultConfig)
 	}
-	content, _, _, err := github.NewClient(nil).WithAuthToken(installationToken).Repositories.GetContents(ctx, owner, repo, ".codecurfew",
-		&github.RepositoryContentGetOptions{Ref: branch})
+	content, _, _, err := github.NewClient(nil).WithAuthToken(installationToken).Repositories.GetContents(
+		ctx, owner, repo, ".codecurfew", &github.RepositoryContentGetOptions{Ref: branch})
 	if err != nil {
-		logger.Debug("failed to get .codecurfew file, using default config", "error", err)
+		l.Warn("failed to get .codecurfew file, using default config", "error", err)
 		return parseConfig(defaultConfig)
 	}
 	configContent, err := content.GetContent()
 	if err != nil {
-		logger.Debug("failed to read .codecurfew content, using default config", "error", err)
+		l.Warn("failed to read .codecurfew content, using default config", "error", err)
 		return parseConfig(defaultConfig)
 	}
 	rules, err := parseConfig(configContent)
 	if err != nil {
-		logger.Debug("failed to parse config, using default", "error", err)
+		l.Debug("failed to parse config, using default", "error", err)
 		return parseConfig(defaultConfig)
 	}
-	logger.Debug("successfully fetched curfew rules")
+	l.Debug("successfully fetched curfew rules")
 	return rules, nil
 }

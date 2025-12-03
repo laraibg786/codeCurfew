@@ -2,14 +2,15 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
 )
 
-const militaryTimeLayout = "1504"
-
-const defaultConfig = `
+const (
+	militaryTimeLayout = "1504"
+	defaultConfig      = `
 Monday 1000 - *
 Tuesday * - *
 Wednesday * - *
@@ -18,30 +19,42 @@ Thursday * - *
 ! Saturday * - *
 ! Sunday * - *
 `
+)
 
-type Rule struct {
-	IsAllowed bool
-	Start     time.Time
-	End       time.Time
-}
+type (
+	Rule struct {
+		IsAllowed bool
+		Start     time.Time
+		End       time.Time
+	}
 
-type CurfewRules []Rule
+	CurfewRules []Rule
+)
 
-func (r CurfewRules) inCurfew(t time.Time) bool {
+func (r CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
+	var inCurfew bool
+	if l == nil {
+		l = slog.Default()
+	}
 	for _, rule := range r {
 		if t.Weekday() != rule.Start.Weekday() {
 			continue
 		}
 		if !t.Before(rule.Start) && !t.After(rule.End) {
-			return !rule.IsAllowed
+			inCurfew = !rule.IsAllowed
+			break
 		}
 	}
-	return false
+	l.Debug("checking curfwew status", "time", t, "rules", r, "status", inCurfew)
+	return inCurfew
 }
 
-func (r CurfewRules) next(t time.Time) (time.Time, error) {
+func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
+	if l == nil {
+		l = slog.Default()
+	}
 	t = t.UTC()
-	if !r.inCurfew(t) {
+	if !r.inCurfew(t, l) {
 		return t, nil
 	}
 
@@ -56,7 +69,7 @@ func (r CurfewRules) next(t time.Time) (time.Time, error) {
 			if rule.Start.After(t) {
 				return rule.Start, nil
 			}
-		} else if !r.inCurfew(end.Add(time.Minute)) {
+		} else if !r.inCurfew(end.Add(time.Minute), l) {
 			// check for checking the consecutive curfew rules.
 			return end.Add(time.Minute), nil
 		}
@@ -101,11 +114,13 @@ func parseConfig(content string) (CurfewRules, error) {
 		if err != nil {
 			return rules, fmt.Errorf("cannot parse end time in line: %q", originalLine)
 		}
-		rules = append(rules, Rule{
+		rule := Rule{
 			IsAllowed: isAllowed,
 			Start:     nextTime(startTime, day),
 			End:       nextTime(endTime, day),
-		})
+		}
+		rules = append(rules, rule)
+		slog.Info("parsed rule from config", "rule", rule, "text", originalLine)
 	}
 	slices.SortFunc(rules, func(r1, r2 Rule) int {
 		if r1.Start.Before(r2.Start) {

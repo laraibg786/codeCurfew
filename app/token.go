@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -14,29 +15,35 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type Token interface {
-	currentToken() (string, error)
-	isExpired(time.Time) bool
-	refreshToken() error
-	resetToken()
-}
+type (
+	TokenHolder interface {
+		currentToken() (string, error)
+		isExpired(time.Time) bool
+		refreshToken() error
+		resetToken()
+	}
 
-type appToken struct {
-	appID  string
-	key    *rsa.PrivateKey
-	value  string
-	expiry time.Time
-}
+	appToken struct {
+		appID  string
+		key    *rsa.PrivateKey `log:"-"`
+		value  string          `log:"-"`
+		expiry time.Time
+	}
 
-type installationToken struct {
-	installationID int
-	jwt            Token
-	value          string
-	expiry         time.Time
-}
+	installationToken struct {
+		installationID int64
+		jwt            TokenHolder
+		value          string `log:"-"`
+		expiry         time.Time
+	}
+)
 
-func GetTokenValue(t Token) (string, error) {
+func GetTokenValue(t TokenHolder) (string, error) {
+	tt := slog.String("token_type", fmt.Sprintf("%T", t))
+
+	slog.Debug("fetching the token value", tt)
 	if t.isExpired(time.Now().Add(time.Minute * -2)) {
+		slog.Debug("refreshing expired token", tt)
 		if err := t.refreshToken(); err != nil {
 			return "", err
 		}
@@ -77,15 +84,17 @@ func (t *appToken) refreshToken() error {
 	}
 	t.value = token
 	t.expiry = expiry
+	slog.Info("refreshed JWT", "expiry", expiry)
 	return nil
 }
 
 func (t *appToken) resetToken() {
 	t.value = ""
 	t.expiry = time.Time{}
+	slog.Debug("resetted the JWT holder")
 }
 
-func newInstallationToken(installationID int, jwt Token) *installationToken {
+func newInstallationToken(installationID int64, jwt TokenHolder) *installationToken {
 	return &installationToken{
 		installationID: installationID,
 		jwt:            jwt,
@@ -140,14 +149,17 @@ func (t *installationToken) refreshToken() error {
 	}
 	t.value = result.Token
 	t.expiry = expiry
+	slog.Info("refreshed installation token", "expiry", expiry)
 	return nil
 }
 func (t *installationToken) resetToken() {
 	t.value = ""
 	t.expiry = time.Time{}
+	slog.Debug("resetted the installation token holder")
 }
 
 func loadPrivateKey() (*rsa.PrivateKey, error) {
+	slog.Info("loading the private key for signing JWT")
 	path := os.Getenv("GITHUB_PRIVATE_KEY_PATH")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -162,33 +174,4 @@ func loadPrivateKey() (*rsa.PrivateKey, error) {
 		return nil, err
 	}
 	return key, nil
-}
-
-func getInstallationToken(jwt string, installationID int64) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/app/installations/%d/access_tokens", installationID)
-	r, err := http.NewRequest("POST", url, nil)
-	if err != nil {
-		return "", err
-	}
-	r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", jwt))
-	r.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := http.DefaultClient.Do(r)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("unexpected status: %s -  %s", resp.Status, string(body))
-	}
-
-	var result struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
-	}
-	return result.Token, nil
 }

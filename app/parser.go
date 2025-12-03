@@ -35,6 +35,7 @@ func (r CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
 	var inCurfew bool
 	if l == nil {
 		l = slog.Default()
+		l.Warn("logger not found in context, using default logger")
 	}
 	for _, rule := range r {
 		if t.Weekday() != rule.Start.Weekday() {
@@ -45,13 +46,14 @@ func (r CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
 			break
 		}
 	}
-	l.Debug("checking curfwew status", "time", t, "rules", r, "status", inCurfew)
+	l.Debug("checking curfew status", "time", t, "rules", r, "status", inCurfew)
 	return inCurfew
 }
 
 func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
 	if l == nil {
 		l = slog.Default()
+		l.Warn("logger not found in context, using default logger")
 	}
 	t = t.UTC()
 	if !r.inCurfew(t, l) {
@@ -120,7 +122,7 @@ func parseConfig(content string) (CurfewRules, error) {
 			End:       nextTime(endTime, day),
 		}
 		rules = append(rules, rule)
-		slog.Info("parsed rule from config", "rule", rule, "text", originalLine)
+		slog.Debug("parsed rule from config", "rule", rule, "text", originalLine)
 	}
 	slices.SortFunc(rules, func(r1, r2 Rule) int {
 		if r1.Start.Before(r2.Start) {

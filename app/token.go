@@ -25,24 +25,31 @@ type (
 
 	appToken struct {
 		appID  string
-		key    *rsa.PrivateKey `log:"-"`
-		value  string          `log:"-"`
+		key    *rsa.PrivateKey
+		value  string
 		expiry time.Time
 	}
 
 	installationToken struct {
 		installationID int64
 		jwt            TokenHolder
-		value          string `log:"-"`
+		value          string
 		expiry         time.Time
 	}
 )
+
+func (t *appToken) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("appID", t.appID), slog.Time("expiry", t.expiry))
+}
+func (t *installationToken) LogValue() slog.Value {
+	return slog.GroupValue(slog.Int64("installationID", t.installationID), slog.Time("expiry", t.expiry))
+}
 
 func GetTokenValue(t TokenHolder) (string, error) {
 	tt := slog.String("token_type", fmt.Sprintf("%T", t))
 
 	slog.Debug("fetching the token value", tt)
-	if t.isExpired(time.Now().Add(time.Minute * -2)) {
+	if t.isExpired(time.Now().Add(time.Minute * 2)) {
 		slog.Debug("refreshing expired token", tt)
 		if err := t.refreshToken(); err != nil {
 			return "", err
@@ -91,7 +98,7 @@ func (t *appToken) refreshToken() error {
 func (t *appToken) resetToken() {
 	t.value = ""
 	t.expiry = time.Time{}
-	slog.Debug("resetted the JWT holder")
+	slog.Debug("reset the JWT holder")
 }
 
 func newInstallationToken(installationID int64, jwt TokenHolder) *installationToken {
@@ -113,8 +120,8 @@ func (t *installationToken) isExpired(ct time.Time) bool {
 }
 
 func (t *installationToken) refreshToken() error {
-	expiry := time.Now().Add(time.Hour)
 	url := fmt.Sprintf("https://api.github.com/app/installations/%d/access_tokens", t.installationID)
+	// FIXME: should be fixed in #1. add context with timeout
 	r, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		t.resetToken()
@@ -141,21 +148,22 @@ func (t *installationToken) refreshToken() error {
 	}
 
 	var result struct {
-		Token string `json:"token"`
+		Token     string    `json:"token"`
+		ExpiresAt time.Time `json:"expires_at"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.resetToken()
 		return err
 	}
 	t.value = result.Token
-	t.expiry = expiry
-	slog.Info("refreshed installation token", "expiry", expiry)
+	t.expiry = result.ExpiresAt
+	slog.Info("refreshed installation token", "expiry", result.ExpiresAt)
 	return nil
 }
 func (t *installationToken) resetToken() {
 	t.value = ""
 	t.expiry = time.Time{}
-	slog.Debug("resetted the installation token holder")
+	slog.Debug("reset the installation token holder")
 }
 
 func loadPrivateKey() (*rsa.PrivateKey, error) {

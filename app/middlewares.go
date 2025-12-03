@@ -6,6 +6,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/google/go-github/v76/github"
@@ -28,10 +30,13 @@ const (
 
 func getIP(r *http.Request) string {
 	ip := r.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		ip = r.RemoteAddr
+	if ip != "" {
+		ipParts := strings.Split(ip, ",")
+		if len(ipParts) > 0 {
+			return strings.TrimSpace(ipParts[0])
+		}
 	}
-	return ip
+	return r.RemoteAddr
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
@@ -87,6 +92,7 @@ func GithubTokenMiddleWare(next http.Handler, appID string) http.Handler {
 	key, err := loadPrivateKey()
 	if err != nil {
 		slog.Error("error loading private key", "error", err)
+		os.Exit(1)
 	}
 	jwtToken := newJWTToken(appID, key)
 
@@ -94,5 +100,4 @@ func GithubTokenMiddleWare(next http.Handler, appID string) http.Handler {
 		ctx := context.WithValue(r.Context(), jwtKey, jwtToken)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-
 }

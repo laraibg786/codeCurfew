@@ -35,10 +35,14 @@ func (s CodeCurfew) registerRoutes() http.Handler {
 
 func NewApiHandlerFunc(f ApiFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := r.Context().Value(loggerKey).(*slog.Logger)
+		l, ok := r.Context().Value(loggerKey).(*slog.Logger)
+		if !ok {
+			l = slog.Default()
+			l.Warn("logger not found in context, using default logger")
+		}
 		if err := f(w, r); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			logger.Error("handler error", "error", err)
+			l.Error("handler error", "error", err)
 		} else {
 			w.WriteHeader(http.StatusOK)
 		}

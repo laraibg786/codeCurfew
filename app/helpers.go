@@ -27,6 +27,7 @@ func setStatus(ctx context.Context, owner string, repo string, ref string, statu
 }
 
 func getCurfewRules(ctx context.Context, owner string, repo string, branch string, token TokenHolder) (CurfewRules, error) {
+	// TODO: the error handling here need to be refined to differentiate between different errors #1
 	l, ok := ctx.Value(loggerKey).(*slog.Logger)
 	if !ok {
 		l = slog.Default()
@@ -53,7 +54,7 @@ func getCurfewRules(ctx context.Context, owner string, repo string, branch strin
 	}
 	rules, err := parseConfig(configContent)
 	if err != nil {
-		l.Debug("failed to parse config, using default", "error", err)
+		l.Debug("failed to parse config, using default config", "error", err)
 		return parseConfig(defaultConfig)
 	}
 	l.Debug("successfully fetched curfew rules")

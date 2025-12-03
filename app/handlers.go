@@ -73,6 +73,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) error {
 		}
 		l.Info("status pending", "reset_time", t, "sha", sha)
 		c := time.After(time.Until(t))
+		// TODO: use scheduler to update the status. #5
 		go func() {
 			<-c
 			l.Info("commit status update started", "owner", owner, "repo", repo, "sha", sha)

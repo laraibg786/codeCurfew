@@ -1,0 +1,30 @@
+# Version control
+.git/
+**/.gitignore
+
+# Environment files (keep .env.example)
+# loaded in the compose.yml
+**/.env
+
+# Binaries
+bin/
+
+# Private keys
+# mounted using ro in compose.yml
+**/github-private-key.pem
+
+# CI/CD
+.github/
+
+# Documentation
+**/*.example
+**/README*
+LICENSE
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

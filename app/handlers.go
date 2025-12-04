@@ -85,3 +85,20 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) error {
 	}
 	return nil
 }
+
+func HandleHealth(w http.ResponseWriter, r *http.Request) error {
+	var (
+		up     string
+		uptime = time.Since(startTime)
+	)
+	w.Header().Set("Content-Type", "application/json")
+	if startTime.IsZero() {
+		up = "unknown"
+	} else {
+		up = uptime.String()
+	}
+	return json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+		"uptime": up,
+	})
+}

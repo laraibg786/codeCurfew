@@ -160,6 +160,7 @@ func (t *installationToken) refreshToken() error {
 	slog.Info("refreshed installation token", "expiry", result.ExpiresAt)
 	return nil
 }
+
 func (t *installationToken) resetToken() {
 	t.value = ""
 	t.expiry = time.Time{}

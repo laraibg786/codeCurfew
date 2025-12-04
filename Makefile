@@ -1,5 +1,5 @@
 APP_NAME := codecurfew
-CMD_DIR := ./cmd/app
+CMD_DIR := ./cmd/code-curfew
 BIN_DIR := ./bin
 
 .PHONY: run build clean

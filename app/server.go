@@ -5,36 +5,34 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/laraibg786/codeCurfew/internal/config"
 )
 
-type (
-	ApiFunc func(http.ResponseWriter, *http.Request) error
-
-	CodeCurfew struct {
-		Secret string
-		AppId  string
-	}
-)
+type ApiFunc func(http.ResponseWriter, *http.Request) error
 
 var startTime time.Time
 
-func (s CodeCurfew) Start(Addr string) {
+func Start(c *config.Config) {
 	startTime = time.Now()
-	mux := s.registerRoutes()
-	slog.Info("running codeCurfew server", "addr", Addr)
-	server := http.Server{Addr: Addr, Handler: mux}
+	mux := registerRoutes(c)
+	slog.Info("running codeCurfew server", "addr", c.Addr)
+	server := http.Server{Addr: c.Addr, Handler: mux}
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
 }
 
-func (s CodeCurfew) registerRoutes() http.Handler {
+func registerRoutes(c *config.Config) http.Handler {
 	slog.Info("registering routes.")
 	mux := http.NewServeMux()
 	mux.Handle("GET /health", NewApiHandlerFunc(HandleHealth))
-	// FIXME: this secret ignored is for development purpose only. fix in the #1
-	mux.Handle("POST /webhook", SecretValidator(GithubTokenMiddleWare(NewApiHandlerFunc(HandleWebhook), s.AppId), nil))
+	mux.Handle("POST /webhook", SecretValidator(
+		GithubTokenMiddleWare(NewApiHandlerFunc(HandleWebhook),
+			c.AppID, c.KeyPEM),
+		c.Secret),
+	)
 	return LoggingMiddleware(mux)
 }
 

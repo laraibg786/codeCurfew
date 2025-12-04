@@ -1,0 +1,77 @@
+package config
+
+import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"flag"
+	"log/slog"
+	"os"
+)
+
+func flagParser(c *Config) {
+	slog.Info("parsing cli args")
+	addr := flag.String("addr", "0.0.0.0:8080", "The address to listen on")
+	logFile := flag.String("logfile", "", "Path to log file (optional)")
+	verbose := flag.Bool("v", false, "Enable verbose logging (debug level for console)")
+	flag.Parse()
+
+	if err := validateAddr(*addr); err != nil {
+		slog.Error("malformed http addr", "addr", *addr, "err", err)
+		*addr = "0.0.0.0:8080"
+		slog.Warn("Fallback to default http address", "fallback-addr", *addr)
+	}
+	c.Addr = *addr
+
+	if err := validateLogFileWriteable(*logFile); err != nil {
+		slog.Error("cannot use provided log file", "file", *logFile, "err", err)
+		slog.Warn("logs will be available only in console")
+		*logFile = ""
+	}
+	c.Logging.File = *logFile
+	c.Logging.Verbose = *verbose
+}
+
+func envParser(c *Config) {
+	slog.Info("parsing environment variables")
+	if err := validateEnv("GITHUB_APP_ID", "GITHUB_PRIVATE_KEY_PATH", "WEBHOOK_SECRET"); err != nil {
+		slog.Error("env validation failed", "err", err)
+		os.Exit(1)
+	}
+
+	c.AppID = os.Getenv("GITHUB_APP_ID")
+	c.Secret = []byte(os.Getenv("WEBHOOK_SECRET"))
+
+	key, err := pemLoader(os.Getenv("GITHUB_PRIVATE_KEY_PATH"))
+	if err != nil {
+		slog.Error("pem loading failed", "err", err)
+		os.Exit(1)
+	}
+	c.KeyPEM = key
+}
+
+func pemLoader(f string) (key *rsa.PrivateKey, err error) {
+	slog.Info("loading rsa key for signing JWT", "path", f)
+	data, err := os.ReadFile(f)
+	if err != nil {
+		return
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		err = ErrMissingPEMBlock
+		return
+	}
+	key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func Load() *Config {
+	slog.Info("loading configuration for starting server")
+	config := &Config{}
+	flagParser(config)
+	envParser(config)
+	return config
+}

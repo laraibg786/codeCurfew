@@ -4,16 +4,22 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 )
 
-type ApiFunc func(http.ResponseWriter, *http.Request) error
+type (
+	ApiFunc func(http.ResponseWriter, *http.Request) error
 
-type CodeCurfew struct {
-	Secret string
-	AppId  string
-}
+	CodeCurfew struct {
+		Secret string
+		AppId  string
+	}
+)
+
+var startTime time.Time
 
 func (s CodeCurfew) Start(Addr string) {
+	startTime = time.Now()
 	mux := s.registerRoutes()
 	slog.Info("running codeCurfew server", "addr", Addr)
 	server := http.Server{Addr: Addr, Handler: mux}
@@ -26,11 +32,10 @@ func (s CodeCurfew) Start(Addr string) {
 func (s CodeCurfew) registerRoutes() http.Handler {
 	slog.Info("registering routes.")
 	mux := http.NewServeMux()
-	mux.Handle("POST /webhook",
-		GithubTokenMiddleWare(NewApiHandlerFunc(HandleWebhook), s.AppId),
-	)
-	// FIXME: this is for development purpose only. fix in the #1
-	return LoggingMiddleware(SecretValidator(mux, nil))
+	mux.Handle("GET /health", NewApiHandlerFunc(HandleHealth))
+	// FIXME: this secret ignored is for development purpose only. fix in the #1
+	mux.Handle("POST /webhook", SecretValidator(GithubTokenMiddleWare(NewApiHandlerFunc(HandleWebhook), s.AppId), nil))
+	return LoggingMiddleware(mux)
 }
 
 func NewApiHandlerFunc(f ApiFunc) http.HandlerFunc {
@@ -41,10 +46,10 @@ func NewApiHandlerFunc(f ApiFunc) http.HandlerFunc {
 			l.Warn("logger not found in context, using default logger")
 		}
 		if err := f(w, r); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			// FIXME: this needs to be properly addressed in #1
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("internal server error"))
 			l.Error("handler error", "error", err)
-		} else {
-			w.WriteHeader(http.StatusOK)
 		}
 	})
 }

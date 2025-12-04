@@ -1,0 +1,23 @@
+services:
+  codecurfew:
+    build:
+      context: ../..
+      dockerfile: build/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./config/.env
+    environment:
+      - GITHUB_PRIVATE_KEY_PATH=/app/github-private-key.pem
+    volumes:
+      - ./config/github-private-key.pem:/app/github-private-key.pem:ro
+      - logs:/var/log/codecurfew
+    command: ["-addr", "0.0.0.0:8080", "-logfile", "/var/log/codecurfew/app.log", "-v"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+volumes:
+  logs:

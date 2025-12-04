@@ -48,7 +48,7 @@ func NewApiHandlerFunc(f ApiFunc) http.HandlerFunc {
 		if err := f(w, r); err != nil {
 			// FIXME: this needs to be properly addressed in #1
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			w.Write([]byte("internal server error"))
 			l.Error("handler error", "error", err)
 		}
 	})

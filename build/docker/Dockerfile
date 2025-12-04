@@ -16,7 +16,7 @@ COPY . .
 RUN go build -o bin/codecurfew ./cmd/app
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.23
 
 # Install ca-certificates, su-exec, and curl for HTTPS requests, user switching, and healthchecks
 RUN apk --no-cache add ca-certificates su-exec curl

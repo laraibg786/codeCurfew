@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 # Chown the log directory to the app user
 if [ -d /var/log/codecurfew ]; then

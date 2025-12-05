@@ -10,10 +10,10 @@ func Configure(fp string, verbose bool) *os.File {
 	slog.Info("configuring logger")
 
 	var (
-		w   io.Writer = os.Stdout
-		f   *os.File  = nil
+		f   *os.File
 		err error
 	)
+	w := io.Writer(os.Stdout)
 	if fp != "" {
 		f, err = os.OpenFile(fp, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err != nil {

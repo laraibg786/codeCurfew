@@ -3,10 +3,10 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -88,12 +88,7 @@ func SecretValidator(next http.Handler, secret []byte) http.Handler {
 	})
 }
 
-func GithubTokenMiddleWare(next http.Handler, appID string) http.Handler {
-	key, err := loadPrivateKey()
-	if err != nil {
-		slog.Error("error loading private key", "error", err)
-		os.Exit(1)
-	}
+func GithubTokenMiddleWare(next http.Handler, appID string, key *rsa.PrivateKey) http.Handler {
 	jwtToken := newJWTToken(appID, key)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

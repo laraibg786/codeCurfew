@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/laraibg786/codeCurfew/app"
+	"github.com/laraibg786/codeCurfew/internal/app"
 	"github.com/laraibg786/codeCurfew/internal/config"
 	"github.com/laraibg786/codeCurfew/internal/logger"
 )

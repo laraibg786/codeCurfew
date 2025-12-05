@@ -5,15 +5,16 @@ import (
 	"log/slog"
 
 	"github.com/google/go-github/v76/github"
+	"github.com/laraibg786/codeCurfew/internal/common"
 )
 
-func setStatus(ctx context.Context, owner string, repo string, ref string, status *github.RepoStatus, installationToken TokenHolder) error {
+func setStatus(ctx context.Context, owner string, repo string, ref string, status *github.RepoStatus, installationToken common.TokenHolder) error {
 	logger, ok := ctx.Value(loggerKey).(*slog.Logger)
 	if !ok {
 		logger = slog.Default()
 		logger.Warn("logger not found in context, using default logger")
 	}
-	token, err := GetTokenValue(installationToken)
+	token, err := common.GetTokenValue(installationToken)
 	if err != nil {
 		return ErrInvalidInstallationToken
 	}
@@ -26,7 +27,7 @@ func setStatus(ctx context.Context, owner string, repo string, ref string, statu
 	return nil
 }
 
-func getCurfewRules(ctx context.Context, owner string, repo string, branch string, token TokenHolder) (CurfewRules, error) {
+func getCurfewRules(ctx context.Context, owner string, repo string, branch string, token common.TokenHolder) (CurfewRules, error) {
 	// TODO: the error handling here need to be refined to differentiate between different errors #1
 	l, ok := ctx.Value(loggerKey).(*slog.Logger)
 	if !ok {
@@ -35,7 +36,7 @@ func getCurfewRules(ctx context.Context, owner string, repo string, branch strin
 	}
 
 	l.Debug("fetching curfew rules", "owner", owner, "repo", repo, "branch", branch)
-	installationToken, err := GetTokenValue(token)
+	installationToken, err := common.GetTokenValue(token)
 	if err != nil {
 		// FIXME: this should give error instead #1.
 		l.Warn("failed to get installation token, using default config", "error", err)

@@ -17,14 +17,14 @@ func flagParser(c *Config) {
 	flag.Parse()
 
 	if err := validateAddr(*addr); err != nil {
-		slog.Error("malformed http addr", "addr", *addr, "err", err)
+		slog.Error("malformed http addr", "addr", *addr, "error", err)
 		*addr = defaultAddr
 		slog.Warn("Fallback to default http address", "fallback-addr", *addr)
 	}
 	c.Addr = *addr
 
 	if err := validateLogFileWriteable(*logFile); err != nil {
-		slog.Error("cannot use provided log file", "file", *logFile, "err", err)
+		slog.Error("cannot use provided log file", "file", *logFile, "error", err)
 		slog.Warn("logs will be available only in console")
 		*logFile = ""
 	}
@@ -35,7 +35,7 @@ func flagParser(c *Config) {
 func envParser(c *Config) {
 	slog.Info("parsing environment variables")
 	if err := validateEnv("GITHUB_APP_ID", "GITHUB_PRIVATE_KEY_PATH", "WEBHOOK_SECRET"); err != nil {
-		slog.Error("env validation failed", "err", err)
+		slog.Error("env validation failed", "error", err)
 		os.Exit(1)
 	}
 
@@ -44,7 +44,7 @@ func envParser(c *Config) {
 
 	key, err := pemLoader(os.Getenv("GITHUB_PRIVATE_KEY_PATH"))
 	if err != nil {
-		slog.Error("pem loading failed", "err", err)
+		slog.Error("pem loading failed", "error", err)
 		os.Exit(1)
 	}
 	c.PrivateKey = key

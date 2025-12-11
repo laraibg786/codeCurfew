@@ -1,8 +1,9 @@
-package app
+package common
 
 import (
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,51 +11,52 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/laraibg786/codeCurfew/internal/common"
 )
 
+var ErrInvalidJWT = errors.New("app jwt for the request cannot be retrieved")
+
 type (
-	appToken struct {
+	AppToken struct {
 		appID  string
 		key    *rsa.PrivateKey
 		value  string
 		expiry time.Time
 	}
 
-	installationToken struct {
+	InstallationToken struct {
 		installationID int64
-		jwt            common.TokenHolder
+		jwt            TokenHolder
 		value          string
 		expiry         time.Time
 	}
 )
 
-func (t *appToken) LogValue() slog.Value {
+func (t *AppToken) LogValue() slog.Value {
 	return slog.GroupValue(slog.String("appID", t.appID), slog.Time("expiry", t.expiry))
 }
-func (t *installationToken) LogValue() slog.Value {
+func (t *InstallationToken) LogValue() slog.Value {
 	return slog.GroupValue(slog.Int64("installationID", t.installationID), slog.Time("expiry", t.expiry))
 }
 
-func newJWTToken(appID string, key *rsa.PrivateKey) *appToken {
-	return &appToken{
+func NewJWTToken(appID string, key *rsa.PrivateKey) *AppToken {
+	return &AppToken{
 		appID: appID,
 		key:   key,
 	}
 }
 
-func (t *appToken) currentToken() (string, error) {
+func (t *AppToken) currentToken() (string, error) {
 	if t.value == "" {
 		return "", fmt.Errorf("no token found")
 	}
 	return t.value, nil
 }
 
-func (t *appToken) isExpired(ct time.Time) bool {
+func (t *AppToken) IsExpired(ct time.Time) bool {
 	return ct.After(t.expiry)
 }
 
-func (t *appToken) refreshToken() error {
+func (t *AppToken) RefreshToken() error {
 	now := time.Now()
 	expiry := now.Add(time.Minute * 10)
 	claims := jwt.MapClaims{
@@ -64,7 +66,7 @@ func (t *appToken) refreshToken() error {
 	}
 	token, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(t.key)
 	if err != nil {
-		t.resetToken()
+		t.ResetToken()
 		return err
 	}
 	t.value = token
@@ -73,31 +75,31 @@ func (t *appToken) refreshToken() error {
 	return nil
 }
 
-func (t *appToken) resetToken() {
+func (t *AppToken) ResetToken() {
 	t.value = ""
 	t.expiry = time.Time{}
 	slog.Debug("reset the JWT holder")
 }
 
-func newInstallationToken(installationID int64, jwt common.TokenHolder) *installationToken {
-	return &installationToken{
+func NewInstallationToken(installationID int64, jwt TokenHolder) *InstallationToken {
+	return &InstallationToken{
 		installationID: installationID,
 		jwt:            jwt,
 	}
 }
 
-func (t *installationToken) CurrentToken() (string, error) {
+func (t *InstallationToken) CurrentToken() (string, error) {
 	if t.value == "" {
 		return "", fmt.Errorf("no token found")
 	}
 	return t.value, nil
 }
 
-func (t *installationToken) IsExpired(ct time.Time) bool {
+func (t *InstallationToken) IsExpired(ct time.Time) bool {
 	return ct.After(t.expiry)
 }
 
-func (t *installationToken) RefreshToken() error {
+func (t *InstallationToken) RefreshToken() error {
 	url := fmt.Sprintf("https://api.github.com/app/installations/%d/access_tokens", t.installationID)
 	// FIXME: should be fixed in #1. add context with timeout
 	r, err := http.NewRequest("POST", url, nil)
@@ -105,7 +107,7 @@ func (t *installationToken) RefreshToken() error {
 		t.ResetToken()
 		return err
 	}
-	token, err := common.GetTokenValue(t.jwt)
+	token, err := GetTokenValue(t.jwt)
 	if err != nil {
 		t.ResetToken()
 		return ErrInvalidJWT
@@ -139,7 +141,7 @@ func (t *installationToken) RefreshToken() error {
 	return nil
 }
 
-func (t *installationToken) ResetToken() {
+func (t *InstallationToken) ResetToken() {
 	t.value = ""
 	t.expiry = time.Time{}
 	slog.Debug("reset the installation token holder")

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/go-github/v76/github"
 	"github.com/google/uuid"
+	"github.com/laraibg786/codeCurfew/internal/common"
 )
 
 type (
@@ -24,8 +25,8 @@ type (
 )
 
 const (
-	jwtKey    = authTokenKey("auth-jwt")
-	loggerKey = loggerKeyType("logger")
+	jwtKey    = common.CtxKey("auth-jwt")
+	loggerKey = common.CtxKey("logger")
 )
 
 func getIP(r *http.Request) string {
@@ -89,7 +90,7 @@ func SecretValidator(next http.Handler, secret []byte) http.Handler {
 }
 
 func GithubTokenMiddleWare(next http.Handler, appID string, key *rsa.PrivateKey) http.Handler {
-	jwtToken := newJWTToken(appID, key)
+	jwtToken := common.NewJWTToken(appID, key)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), jwtKey, jwtToken)

@@ -1,4 +1,4 @@
-package app
+package common
 
 import (
 	"fmt"
@@ -8,9 +8,10 @@ import (
 	"time"
 )
 
+// TODO: all of this should be moved to /pkg
 const (
 	militaryTimeLayout = "1504"
-	defaultConfig      = `
+	DefaultConfig      = `
 Monday 1000 - *
 Tuesday * - *
 Wednesday * - *
@@ -28,16 +29,16 @@ type (
 		End       time.Time
 	}
 
-	CurfewRules []Rule
+	CurfewRules []*Rule
 )
 
-func (r CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
+func (r *CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
 	var inCurfew bool
 	if l == nil {
 		l = slog.Default()
 		l.Warn("logger not found in context, using default logger")
 	}
-	for _, rule := range r {
+	for _, rule := range *r {
 		if t.Weekday() != rule.Start.Weekday() {
 			continue
 		}
@@ -50,7 +51,7 @@ func (r CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
 	return inCurfew
 }
 
-func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
+func (r *CurfewRules) Next(t time.Time, l *slog.Logger) (time.Time, error) {
 	if l == nil {
 		l = slog.Default()
 		l.Warn("logger not found in context, using default logger")
@@ -60,7 +61,7 @@ func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
 		return t, nil
 	}
 
-	for _, rule := range r {
+	for _, rule := range *r {
 		// ignore the rules that have already ended
 		end := rule.End
 		if t.After(end) {
@@ -79,7 +80,7 @@ func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("could not find the next allowed time after %v", t)
 }
 
-func parseConfig(content string) (CurfewRules, error) {
+func ParseConfig(content string) (*CurfewRules, error) {
 	rules := CurfewRules{}
 	for _, originalLine := range strings.Split(content, "\n") {
 		line := strings.TrimSpace(originalLine)
@@ -93,7 +94,7 @@ func parseConfig(content string) (CurfewRules, error) {
 		}
 		fields := strings.Fields(line)
 		if len(fields) < 4 || fields[2] != "-" {
-			return rules, fmt.Errorf("cannot parse the fields in the invalid line: %q", originalLine)
+			return &rules, fmt.Errorf("cannot parse the fields in the invalid line: %q", originalLine)
 		}
 
 		if fields[1] == "*" {
@@ -105,26 +106,26 @@ func parseConfig(content string) (CurfewRules, error) {
 
 		day, err := parseWeekday(fields[0])
 		if err != nil {
-			return rules, fmt.Errorf("invalid weekday name in the line: %q", originalLine)
+			return &rules, fmt.Errorf("invalid weekday name in the line: %q", originalLine)
 		}
 
 		startTime, err := time.Parse(militaryTimeLayout, fields[1])
 		if err != nil {
-			return rules, fmt.Errorf("cannot parse start time in line: %q", originalLine)
+			return &rules, fmt.Errorf("cannot parse start time in line: %q", originalLine)
 		}
 		endTime, err := time.Parse(militaryTimeLayout, fields[3])
 		if err != nil {
-			return rules, fmt.Errorf("cannot parse end time in line: %q", originalLine)
+			return &rules, fmt.Errorf("cannot parse end time in line: %q", originalLine)
 		}
-		rule := Rule{
+		rule := &Rule{
 			IsAllowed: isAllowed,
 			Start:     nextTime(startTime, day),
 			End:       nextTime(endTime, day),
 		}
 		rules = append(rules, rule)
-		slog.Debug("parsed rule from config", "rule", rule, "text", originalLine)
+		slog.Debug("parsed rule from config", "rule", *rule, "text", originalLine)
 	}
-	slices.SortFunc(rules, func(r1, r2 Rule) int {
+	slices.SortFunc(rules, func(r1, r2 *Rule) int {
 		if r1.Start.Before(r2.Start) {
 			return -1
 		}
@@ -133,7 +134,7 @@ func parseConfig(content string) (CurfewRules, error) {
 		}
 		return 0
 	})
-	return rules, nil
+	return &rules, nil
 }
 
 func nextTime(t time.Time, day time.Weekday) time.Time {

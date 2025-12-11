@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -13,38 +14,34 @@ import (
 	gh "github.com/laraibg786/codeCurfew/internal/service/github"
 )
 
-var ErrInvalidJWT = errors.New("app jwt for the request cannot be retrieved")
 var ErrInvalidInstallationToken = errors.New("could not get the installation token")
 
 func HandleWebhook(w http.ResponseWriter, r *http.Request) error {
-	l := common.GetLoggerFromContext(r.Context())
-	jwtToken, ok := r.Context().Value(jwtKey).(common.TokenHolder)
-	if !ok {
-		return ErrInvalidJWT
+	l, err := common.GetValueFromContext[*slog.Logger](r.Context(), common.CtxKey("logger"), slog.Default())
+	if err != nil {
+		var ce *common.TypeMismatchError
+		switch {
+		case errors.Is(err, common.ErrMissingValue):
+			l.Warn("logger not found in context. using default logger")
+		case errors.As(err, &ce):
+			l.Error("retrieved logger from context has unexpected type. using default logger", "error", ce)
+		}
+	}
+	jwtToken, err := common.GetValueFromContext[common.TokenHolder](r.Context(), jwtKey, nil)
+	if err != nil || jwtToken == nil {
+		return common.ErrInvalidJWT
 	}
 
 	event := github.WebHookType(r) // inspect headers to determine the event type
 	switch event {
 	case "pull_request":
-		return gh.HandlePullRequestEvent(r, l)
+		return gh.HandlePullRequestEvent(r, jwtToken, l)
 	default:
 		l.Error("unknown event received for webhook", "event", event)
 		return errors.New("unknown event. only PR events is supported")
 	}
 
-	action := prEvent.GetAction()
-	if !slices.Contains([]string{"opened", "synchronize"}, action) {
-		l.Info("skipping unsupported PR action", "action", action)
-		return nil
-	}
-	owner := prEvent.GetRepo().GetOwner().GetLogin()
-	repo := prEvent.GetRepo().GetName()
-	sha := prEvent.GetPullRequest().GetHead().GetSHA()
-	installationID := prEvent.GetInstallation().GetID()
-	installationToken := newInstallationToken(installationID, jwtToken)
-	l.Debug("processing PR webhook",
-		"owner", owner, "repo", repo, "sha", sha, "action", action, "installation_id", installationID)
-
+	
 	success := &github.RepoStatus{State: github.Ptr("success"), Context: github.Ptr("codecurfew")}
 	pending := &github.RepoStatus{State: github.Ptr("pending"), Context: github.Ptr("codecurfew")}
 
@@ -53,7 +50,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	inCurfew := curfewRules.inCurfew(time.Now().UTC(), l)
-	l.Debug("checked the curfew", "in_curfew", inCurfew)
+	l.Debug("checked the curfew", "result", inCurfew)
 	if !inCurfew {
 		if err := setStatus(r.Context(), owner, repo, sha, success, installationToken); err != nil {
 			return err

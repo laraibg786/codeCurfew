@@ -2,40 +2,35 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 )
 
-type ctxKey string
+type CtxKey string
 
-const (
-	loggerKey = ctxKey("logger")
-	jwtKey    = ctxKey("jwt_token")
-)
+var ErrMissingValue = errors.New("value is missing")
 
-func GetLoggerFromContext(ctx context.Context) *slog.Logger {
-	l, ok := ctx.Value(loggerKey).(*slog.Logger)
-	if !ok {
-		l = slog.Default()
-		l.Warn("logger not found in request context. using default logger")
-	}
-	return l
+type TypeMismatchError struct {
+	ExpectedType string
+	ActualType   string
 }
 
-func GetJWTFromContext(ctx context.Context, l *slog.Logger) (TokenHolder, error) {
-	t, ok := ctx.Value(jwtKey).(TokenHolder)
-	if !ok {
-		l.Warn("jwt token not found in context")
-		return nil, fmt.Errorf("jwt token not found in context")
-	}
-
-func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context {
-	return context.WithValue(ctx, loggerKey, logger)
+func (e *TypeMismatchError) Error() string {
+	return fmt.Sprintf("type mismatch: expected %s, got %s", e.ExpectedType, e.ActualType)
 }
 
-func ContextWithJWTToken(ctx context.Context, token TokenHolder) context.Context {
-	return context.WithValue(ctx, jwtKey, token)
+func GetValueFromContext[T any](ctx context.Context, key CtxKey, dv T) (T, error) {
+	v := ctx.Value(key)
+	if v == nil {
+		return dv, ErrMissingValue
+	}
+	val, ok := v.(T)
+	if !ok {
+		return dv, &TypeMismatchError{ExpectedType: fmt.Sprintf("%T", dv), ActualType: fmt.Sprintf("%T", v)}
+	}
+	return val, nil
 }
 
 type TokenHolder interface {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/go-github/v76/github"
 	"github.com/laraibg786/codeCurfew/internal/common"
-	gh "github.com/laraibg786/codeCurfew/internal/service/github"
+	gh "github.com/laraibg786/codeCurfew/internal/github"
 )
 
 var ErrInvalidInstallationToken = errors.New("could not get the installation token")
@@ -27,6 +27,7 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) error {
 	}
 	jwtToken, err := common.GetValueFromContext[common.TokenHolder](r.Context(), jwtKey, nil)
 	if err != nil || jwtToken == nil {
+		l.Error("error occured in getting jwt token", "error", err)
 		return common.ErrInvalidJWT
 	}
 

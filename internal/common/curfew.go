@@ -124,6 +124,14 @@ func ParseConfig(content string) (*CurfewRules, error) {
 			End:       nextTime(endTime, day),
 		}
 		rules = append(rules, rule)
+		if now := time.Now().UTC(); day == now.Weekday() {
+			// also cover today since the next occurrence of day is covered above.
+			rules = append(rules, &Rule{
+				IsAllowed: isAllowed,
+				Start:     rule.Start.Add(time.Hour * 24 * -7),
+				End:       rule.End.Add(time.Hour * 24 * -7),
+			})
+		}
 		slog.Debug("parsed rule from config", "rule", *rule, "text", originalLine)
 	}
 	slices.SortFunc(rules, func(r1, r2 *Rule) int {

@@ -1,5 +1,8 @@
+// FIXME: Remove this file after testing the refactoring. All code has been migrated to webhook.go, config.go, status.go.
+
 package gh
 
+/*
 import (
 	"context"
 	"encoding/json"
@@ -13,9 +16,11 @@ import (
 	"github.com/google/go-github/v76/github"
 	"github.com/laraibg786/codeCurfew/internal/common"
 )
+*/
 
-var ErrMalformedBody = errors.New("malformed pull request event")
+// var ErrMalformedBody = errors.New("malformed pull request event")
 
+/*
 type RemoteFile struct {
 	owner    string
 	repo     string
@@ -28,7 +33,9 @@ type Commit struct {
 	repo  string
 	sha   string
 }
+*/
 
+/*
 func HandlePullRequestEvent(r *http.Request, jwt common.TokenHolder, l *slog.Logger) error {
 	var p github.PullRequestEvent
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
@@ -64,7 +71,9 @@ func HandlePullRequestEvent(r *http.Request, jwt common.TokenHolder, l *slog.Log
 
 	return nil
 }
+*/
 
+/*
 func getCurfewRules(ctx context.Context, l *slog.Logger, f *RemoteFile, client *github.Client) (*common.CurfewRules, error) {
 	configContent, err := getConfigContent(ctx, l, f, client)
 	if err != nil {
@@ -78,7 +87,9 @@ func getCurfewRules(ctx context.Context, l *slog.Logger, f *RemoteFile, client *
 	l.Debug("successfully fetched curfew rules")
 	return rules, nil
 }
+*/
 
+/*
 func getConfigContent(ctx context.Context, l *slog.Logger, f *RemoteFile, client *github.Client) (string, error) {
 	l.Debug("fetching config file", "owner", f.owner, "repo", f.repo, "branch", f.branch, "file", f.filePath)
 
@@ -102,7 +113,9 @@ func getConfigContent(ctx context.Context, l *slog.Logger, f *RemoteFile, client
 
 	return content, nil
 }
+*/
 
+/*
 func enforceCurfew(ctx context.Context, l *slog.Logger, r *common.CurfewRules, commit *Commit, client *github.Client, token common.TokenHolder) error {
 	var state *string
 
@@ -147,3 +160,4 @@ func enforceCurfew(ctx context.Context, l *slog.Logger, r *common.CurfewRules, c
 	}
 	return nil
 }
+*/

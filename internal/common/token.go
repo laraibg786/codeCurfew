@@ -45,7 +45,7 @@ func NewJWTToken(appID string, key *rsa.PrivateKey) *AppToken {
 	}
 }
 
-func (t *AppToken) currentToken() (string, error) {
+func (t *AppToken) CurrentToken() (string, error) {
 	if t.value == "" {
 		return "", fmt.Errorf("no token found")
 	}

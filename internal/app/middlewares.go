@@ -75,7 +75,8 @@ func SecretValidator(next http.Handler, secret []byte) http.Handler {
 			l.Warn("logger not found in request context. using default logger")
 		}
 		l.Debug("verifying the validity of the request")
-		_, err := github.ValidatePayload(r, secret)
+		payload, err := github.ValidatePayload(r, secret)
+		r.Body = io.NopCloser(bytes.NewReader(payload))
 		if err != nil {
 			l.Error("request validation failed.", "error", err)
 			w.WriteHeader(http.StatusForbidden)

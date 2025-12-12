@@ -1,12 +1,10 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/google/go-github/v76/github"
@@ -40,42 +38,6 @@ func HandleWebhook(w http.ResponseWriter, r *http.Request) error {
 		l.Error("unknown event received for webhook", "event", event)
 		return errors.New("unknown event. only PR events is supported")
 	}
-
-	
-	success := &github.RepoStatus{State: github.Ptr("success"), Context: github.Ptr("codecurfew")}
-	pending := &github.RepoStatus{State: github.Ptr("pending"), Context: github.Ptr("codecurfew")}
-
-	curfewRules, err := getCurfewRules(r.Context(), owner, repo, prEvent.GetRepo().GetDefaultBranch(), installationToken)
-	if err != nil {
-		return err
-	}
-	inCurfew := curfewRules.inCurfew(time.Now().UTC(), l)
-	l.Debug("checked the curfew", "result", inCurfew)
-	if !inCurfew {
-		if err := setStatus(r.Context(), owner, repo, sha, success, installationToken); err != nil {
-			return err
-		}
-	} else {
-		if err := setStatus(r.Context(), owner, repo, sha, pending, installationToken); err != nil {
-			return err
-		}
-		t, err := curfewRules.next(time.Now().UTC(), l)
-		if err != nil {
-			return err
-		}
-		l.Info("status pending", "reset_time", t, "sha", sha)
-		c := time.After(time.Until(t))
-		// TODO: use scheduler to update the status. #5
-		go func() {
-			<-c
-			l.Info("commit status update started", "owner", owner, "repo", repo, "sha", sha)
-			if err := setStatus(context.WithValue(context.Background(),
-				loggerKey, l), owner, repo, sha, success, installationToken); err != nil {
-				l.Error("failed to update status after curfew", "error", err, "sha", sha, "owner", owner, "repo", repo)
-			}
-		}()
-	}
-	return nil
 }
 
 func HandleHealth(w http.ResponseWriter, r *http.Request) error {

@@ -15,14 +15,10 @@ import (
 	"github.com/laraibg786/codeCurfew/internal/common"
 )
 
-type (
-	authTokenKey   string
-	loggerKeyType  string
-	responseWriter struct {
-		http.ResponseWriter
-		status int
-	}
-)
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
 
 const (
 	jwtKey    = common.CtxKey("auth-jwt")

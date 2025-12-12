@@ -32,7 +32,7 @@ type (
 	CurfewRules []*Rule
 )
 
-func (r *CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
+func (r *CurfewRules) InCurfew(t time.Time, l *slog.Logger) bool {
 	var inCurfew bool
 	if l == nil {
 		l = slog.Default()
@@ -57,7 +57,7 @@ func (r *CurfewRules) Next(t time.Time, l *slog.Logger) (time.Time, error) {
 		l.Warn("logger not found in context, using default logger")
 	}
 	t = t.UTC()
-	if !r.inCurfew(t, l) {
+	if !r.InCurfew(t, l) {
 		return t, nil
 	}
 
@@ -72,7 +72,7 @@ func (r *CurfewRules) Next(t time.Time, l *slog.Logger) (time.Time, error) {
 			if rule.Start.After(t) {
 				return rule.Start, nil
 			}
-		} else if !r.inCurfew(end.Add(time.Minute), l) {
+		} else if !r.InCurfew(end.Add(time.Minute), l) {
 			// check for checking the consecutive curfew rules.
 			return end.Add(time.Minute), nil
 		}
@@ -81,6 +81,7 @@ func (r *CurfewRules) Next(t time.Time, l *slog.Logger) (time.Time, error) {
 }
 
 func ParseConfig(content string) (*CurfewRules, error) {
+	// TODO: handle for empty content.
 	rules := CurfewRules{}
 	for _, originalLine := range strings.Split(content, "\n") {
 		line := strings.TrimSpace(originalLine)

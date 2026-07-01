@@ -17,16 +17,3 @@ func validateLogFileWriteable(path string) (err error) {
 	}
 	return f.Close()
 }
-
-func validateEnv(key ...string) error {
-	var err EnvNotFoundError
-	for _, k := range key {
-		if os.Getenv(k) == "" {
-			err.V = append(err.V, k)
-		}
-	}
-	if len(err.V) == 0 {
-		return nil
-	}
-	return &err
-}

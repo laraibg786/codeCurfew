@@ -1,36 +1,26 @@
 package config
 
-import (
-	"crypto/rsa"
-	"errors"
-	"strings"
-)
-
 type (
 	Config struct {
-		Addr       string
-		AppID      string
-		Secret     []byte
-		PrivateKey *rsa.PrivateKey
-		Logging    LoggingConfig
+		Addr    string
+		Logging LoggingConfig
+		// Provider is the name of the VCS provider to use, looked up in the
+		// provider registry at startup. It defaults to defaultProvider ("github")
+		// so existing deployments keep working with zero configuration changes.
+		Provider string
 	}
 
 	LoggingConfig struct {
 		File    string
 		Verbose bool
 	}
-
-	EnvNotFoundError struct {
-		V []string
-	}
 )
-
-var ErrMissingPEMBlock = errors.New("no PEM block found")
 
 const (
-	defaultAddr = "0.0.0.0:8080"
+	defaultAddr     = "0.0.0.0:8080"
+	defaultProvider = "github"
+	// envProvider is the environment variable that selects the VCS provider. It
+	// seeds the -provider flag's default so either mechanism works: set PROVIDER
+	// in a deployment, or pass -provider on the command line to override it.
+	envProvider = "PROVIDER"
 )
-
-func (e *EnvNotFoundError) Error() string {
-	return "missing env vars: " + strings.Join(e.V, ", ")
-}

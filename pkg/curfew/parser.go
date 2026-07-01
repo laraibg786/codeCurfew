@@ -1,4 +1,9 @@
-package app
+// Package curfew implements the .codecurfew DSL: a small, weekday-based
+// format describing when commits are allowed or denied. It is deliberately
+// standalone (no dependency on this module's internal packages) so it can be
+// imported and reused outside the webhook server, e.g. by a future
+// standalone validator.
+package curfew
 
 import (
 	"fmt"
@@ -10,7 +15,9 @@ import (
 
 const (
 	militaryTimeLayout = "1504"
-	defaultConfig      = `
+	// DefaultConfig is the built-in fallback DSL text used when a repository
+	// does not define its own .codecurfew file (or it cannot be fetched/parsed).
+	DefaultConfig = `
 Monday 1000 - *
 Tuesday * - *
 Wednesday * - *
@@ -22,16 +29,20 @@ Thursday * - *
 )
 
 type (
+	// Rule represents a single parsed line of the .codecurfew DSL.
 	Rule struct {
 		IsAllowed bool
 		Start     time.Time
 		End       time.Time
 	}
 
-	CurfewRules []Rule
+	// Rules is a parsed, sorted collection of Rule.
+	Rules []Rule
 )
 
-func (r CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
+// InCurfew reports whether t falls within a curfew (disallowed) window
+// according to the rules.
+func (r Rules) InCurfew(t time.Time, l *slog.Logger) bool {
 	var inCurfew bool
 	if l == nil {
 		l = slog.Default()
@@ -50,13 +61,15 @@ func (r CurfewRules) inCurfew(t time.Time, l *slog.Logger) bool {
 	return inCurfew
 }
 
-func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
+// Next returns the next time after t at which commits are allowed again, per
+// the rules. If t is not currently in curfew, it returns t unchanged.
+func (r Rules) Next(t time.Time, l *slog.Logger) (time.Time, error) {
 	if l == nil {
 		l = slog.Default()
 		l.Warn("logger not found in context, using default logger")
 	}
 	t = t.UTC()
-	if !r.inCurfew(t, l) {
+	if !r.InCurfew(t, l) {
 		return t, nil
 	}
 
@@ -71,7 +84,7 @@ func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
 			if rule.Start.After(t) {
 				return rule.Start, nil
 			}
-		} else if !r.inCurfew(end.Add(time.Minute), l) {
+		} else if !r.InCurfew(end.Add(time.Minute), l) {
 			// check for checking the consecutive curfew rules.
 			return end.Add(time.Minute), nil
 		}
@@ -79,8 +92,9 @@ func (r CurfewRules) next(t time.Time, l *slog.Logger) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("could not find the next allowed time after %v", t)
 }
 
-func parseConfig(content string) (CurfewRules, error) {
-	rules := CurfewRules{}
+// Parse parses the .codecurfew DSL content into a sorted set of Rules.
+func Parse(content string) (Rules, error) {
+	rules := Rules{}
 	for _, originalLine := range strings.Split(content, "\n") {
 		line := strings.TrimSpace(originalLine)
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
